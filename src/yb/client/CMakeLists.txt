@@ -41,6 +41,7 @@ set(CLIENT_SRCS
   client_utils.cc
   error.cc
   error_collector.cc
+  forward_rpc.cc
   in_flight_op.cc
   meta_cache.cc
   meta_data_cache.cc

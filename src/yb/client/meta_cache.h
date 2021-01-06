@@ -527,6 +527,9 @@ class MetaCache : public RefCountedThreadSafe<MetaCache> {
                             const std::shared_ptr<tserver::TabletServerServiceProxy>& proxy,
                             const tserver::LocalTabletServer* local_tserver);
 
+  // Sets the local tserver given the tserver info.
+  void SetLocalTabletServer(const master::TSInfoPB& ts_info);
+
   // Look up which tablet hosts the given partition key for a table. When it is
   // available, the tablet is stored in 'remote_tablet' (if not NULL) and the
   // callback is fired. Only tablets with non-failed LEADERs are considered.

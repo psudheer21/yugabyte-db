@@ -254,6 +254,10 @@ class YBSession : public std::enable_shared_from_this<YBSession> {
 
   void SetRejectionScoreSource(RejectionScoreSourcePtr rejection_score_source);
 
+  void SetForceLocalTserverForward(bool force_local_tserver_forward) {
+    force_local_tserver_forward_ = force_local_tserver_forward;
+  }
+
  private:
   friend class YBClient;
   friend class internal::Batcher;
@@ -268,6 +272,7 @@ class YBSession : public std::enable_shared_from_this<YBSession> {
   YBTransactionPtr transaction_;
   bool allow_local_calls_in_curr_thread_ = true;
   bool force_consistent_read_ = false;
+  bool force_local_tserver_forward_ = false;
 
   // Lock protecting flushed_batchers_.
   mutable simple_spinlock lock_;

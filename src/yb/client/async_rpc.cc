@@ -107,7 +107,10 @@ bool IsTracingEnabled() {
 
 namespace {
 
-bool LocalTabletServerOnly(const InFlightOps& ops) {
+bool LocalTabletServerOnly(bool force_local_tserver_forward, const InFlightOps& ops) {
+  if (force_local_tserver_forward) {
+    return true;
+  }
   const auto op_type = ops.front()->yb_op->type();
   return ((op_type == YBOperation::Type::REDIS_READ || op_type == YBOperation::Type::REDIS_WRITE) &&
           !FLAGS_forward_redis_requests);
@@ -131,7 +134,7 @@ AsyncRpc::AsyncRpc(AsyncRpcData* data, YBConsistencyLevel yb_consistency_level)
       batcher_(data->batcher),
       trace_(new Trace),
       ops_(std::move(data->ops)),
-      tablet_invoker_(LocalTabletServerOnly(ops_),
+      tablet_invoker_(LocalTabletServerOnly(data->force_local_tserver_forward, ops_),
                       yb_consistency_level == YBConsistencyLevel::CONSISTENT_PREFIX,
                       data->batcher->client_,
                       this,
@@ -140,6 +143,7 @@ AsyncRpc::AsyncRpc(AsyncRpcData* data, YBConsistencyLevel yb_consistency_level)
                       table(),
                       mutable_retrier(),
                       trace_.get()),
+      forward_request_(data->force_local_tserver_forward),
       start_(CoarseMonoClock::Now()),
       async_rpc_metrics_(data->batcher->async_rpc_metrics()) {
 
@@ -306,7 +310,6 @@ void AsyncRpc::SendRpcToTserver(int attempt_num) {
   if (async_rpc_metrics_) {
     async_rpc_metrics_->time_to_send->Increment(ToMicroseconds(end_time - start_));
   }
-
   CallRemoteMethod();
 }
 
@@ -395,6 +398,8 @@ WriteRpc::WriteRpc(AsyncRpcData* data)
 
   TRACE_TO(trace_, "WriteRpc initiated");
   VTRACE_TO(1, trace_, "Tablet $0 table $1", data->tablet->tablet_id(), table()->name().ToString());
+
+  req_.set_forward_request(forward_request_);
 
   if (data->write_time_for_backfill_.is_valid()) {
     req_.set_external_hybrid_time(data->write_time_for_backfill_.ToUint64());
@@ -633,6 +638,7 @@ ReadRpc::ReadRpc(AsyncRpcData* data, YBConsistencyLevel yb_consistency_level)
   VTRACE_TO(1, trace_, "Tablet $0 table $1", data->tablet->tablet_id(), table()->name().ToString());
   req_.set_consistency_level(yb_consistency_level);
   req_.set_proxy_uuid(data->batcher->proxy_uuid());
+  req_.set_forward_request(forward_request_);
 
   int ctr = 0;
   for (auto& op : ops_) {

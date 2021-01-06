@@ -594,6 +594,14 @@ void MetaCache::SetLocalTabletServer(const string& permanent_uuid,
   local_tserver_ = entry.first->second.get();
 }
 
+void MetaCache::SetLocalTabletServer(const master::TSInfoPB& ts_info) {
+  const std::string& permanent_uuid = ts_info.permanent_uuid();
+  const auto entry = ts_cache_.emplace(permanent_uuid,
+                                       std::make_unique<RemoteTabletServer>(ts_info));
+  CHECK(entry.second);
+  local_tserver_ = entry.first->second.get();
+}
+
 void MetaCache::UpdateTabletServerUnlocked(const master::TSInfoPB& pb) {
   const std::string& permanent_uuid = pb.permanent_uuid();
   auto it = ts_cache_.find(permanent_uuid);

@@ -53,6 +53,9 @@ struct PgProcessConf {
   // File descriptor of the local tserver's shared memory.
   int tserver_shm_fd = -1;
 
+  // The UUID of the local tserver.
+  std::string local_tserver_uuid = "";
+
   // If this is true, we will not log to the file, even if the log file is specified.
   bool force_disable_log_file = false;
 };

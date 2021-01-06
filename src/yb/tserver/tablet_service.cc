@@ -37,6 +37,7 @@
 #include <string>
 #include <vector>
 
+#include "yb/client/forward_rpc.h"
 #include "yb/client/transaction.h"
 #include "yb/client/transaction_pool.h"
 
@@ -234,6 +235,8 @@ DEFINE_test_flag(int32, alter_schema_delay_ms, 0, "Delay before processing Alter
 namespace yb {
 namespace tserver {
 
+using client::internal::ForwardReadRpc;
+using client::internal::ForwardWriteRpc;
 using consensus::ChangeConfigRequestPB;
 using consensus::ChangeConfigResponsePB;
 using consensus::CONSENSUS_CONFIG_ACTIVE;
@@ -1369,6 +1372,15 @@ void TabletServiceImpl::Write(const WriteRequestPB* req,
     context.RespondSuccess();
     return;
   }
+
+  if (req->forward_request()) {
+    // Forward the rpc to the required Tserver.
+    std::shared_ptr<ForwardWriteRpc> forward_rpc =
+      std::make_shared<ForwardWriteRpc>(req, resp, std::move(context), server_->client());
+    forward_rpc->SendRpc();
+    return;
+  }
+
   TRACE("Start Write");
   TRACE_EVENT1("tserver", "TabletServiceImpl::Write",
                "tablet_id", req->tablet_id());
@@ -1376,7 +1388,7 @@ void TabletServiceImpl::Write(const WriteRequestPB* req,
   UpdateClock(*req, server_->Clock());
 
   auto tablet = LookupLeaderTabletOrRespond(
-      server_->tablet_peer_lookup(), req->tablet_id(), resp, &context);
+      server_->tablet_peer_lookup(), req->tablet_id(), resp, &context, TabletPeerTablet());
   if (!tablet ||
       !CheckWriteThrottlingOrRespond(
           req->rejection_score(), tablet.peer.get(), resp, &context)) {
@@ -1701,7 +1713,6 @@ struct ReadContext {
   }
 };
 
-// Used when we write intents during read, i.e. for serializable isolation.
 // We cannot proceed with read from ReadOperationCompletionCallback, to avoid holding
 // replica state lock for too long.
 // So ThreadPool is used to proceed with read.
@@ -1775,6 +1786,15 @@ void TabletServiceImpl::Read(const ReadRequestPB* req,
     context.RespondSuccess();
     return;
   }
+
+  if (req->forward_request()) {
+    // Forward the rpc to the required Tserver.
+    std::shared_ptr<ForwardReadRpc> forward_rpc =
+      std::make_shared<ForwardReadRpc>(req, resp, std::move(context), server_->client());
+    forward_rpc->SendRpc();
+    return;
+  }
+
   TRACE("Start Read");
   TRACE_EVENT1("tserver", "TabletServiceImpl::Read",
       "tablet_id", req->tablet_id());

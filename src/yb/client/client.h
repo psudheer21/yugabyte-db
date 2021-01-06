@@ -555,10 +555,16 @@ class YBClient {
 
   CHECKED_STATUS ListTabletServers(std::vector<std::unique_ptr<YBTabletServer>>* tablet_servers);
 
+  // List the tserver info for all the tservers in the cluster.
+  CHECKED_STATUS ListTsInfoVec(std::vector<master::TSInfoPB>* tablet_server_info_vec);
+
   // Sets local tserver and its proxy.
   void SetLocalTabletServer(const std::string& ts_uuid,
                             const std::shared_ptr<tserver::TabletServerServiceProxy>& proxy,
                             const tserver::LocalTabletServer* local_tserver);
+
+  // Sets the local tserver given the Tserver info.
+  void SetLocalTabletServer(const master::TSInfoPB& ts_info);
 
   // List only those tables whose names pass a substring match on 'filter'.
   //

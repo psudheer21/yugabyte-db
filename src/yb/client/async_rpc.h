@@ -56,6 +56,7 @@ struct AsyncRpcData {
   HybridTime write_time_for_backfill_ = HybridTime::kInvalid;
   InFlightOps ops;
   bool need_metadata = false;
+  bool force_local_tserver_forward = false;
 };
 
 struct FlushExtraResult {
@@ -119,6 +120,8 @@ class AsyncRpc : public rpc::Rpc, public TabletRpc {
   InFlightOps ops_;
 
   TabletInvoker tablet_invoker_;
+
+  bool forward_request_;
 
   CoarseTimePoint start_;
   std::shared_ptr<AsyncRpcMetrics> async_rpc_metrics_;
