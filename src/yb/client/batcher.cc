@@ -668,7 +668,8 @@ std::shared_ptr<AsyncRpc> Batcher::CreateRpc(
   // Forward to local tserver if we have the option enabled and the rpc is not for the master {which
   // is concluded by checking if the tablet_id is '00000000000000000000000000000000'}.
   const bool local_forward = force_local_tserver_forward_ &&
-                             tablet->tablet_id() != "00000000000000000000000000000000";
+                             tablet->tablet_id() != "00000000000000000000000000000000" &&
+                             client_->GetLocalTabletServer();
   AsyncRpcData data {
     .batcher = this,
     .tablet = tablet,

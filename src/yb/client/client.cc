@@ -1501,6 +1501,10 @@ void YBClient::SetLocalTabletServer(const master::TSInfoPB& ts_info) {
   data_->meta_cache_->SetLocalTabletServer(ts_info);
 }
 
+internal::RemoteTabletServer* YBClient::GetLocalTabletServer() {
+  return data_->meta_cache_->local_tserver();
+}
+
 Result<bool> YBClient::IsLoadBalanced(uint32_t num_servers) {
   IsLoadBalancedRequestPB req;
   IsLoadBalancedResponsePB resp;

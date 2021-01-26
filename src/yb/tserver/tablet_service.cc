@@ -232,6 +232,9 @@ DEFINE_test_flag(int32, transactional_read_delay_ms, 0,
 
 DEFINE_test_flag(int32, alter_schema_delay_ms, 0, "Delay before processing AlterSchema.");
 
+DEFINE_bool(one_hop_optimization, true,
+            "Whether we ignore the forward rpc flag when the leader is present on the node.");
+
 namespace yb {
 namespace tserver {
 
@@ -1362,6 +1365,25 @@ bool EmptyWriteBatch(const docdb::KeyValueWriteBatchPB& write_batch) {
   return write_batch.write_pairs().empty() && write_batch.apply_external_transactions().empty();
 }
 
+bool TabletServiceImpl::HasTabletLeader(const string& tablet_id) {
+  TabletPeerTablet result;
+  Status status = server_->tablet_peer_lookup()->GetTabletPeer(tablet_id, &result.tablet_peer);
+  if (!status.ok() ||
+      result.tablet_peer->state() != tablet::RUNNING ||
+      !result.tablet_peer->shared_tablet()) {
+    return false;
+  }
+
+  LeaderTabletPeer leader;
+  leader.FillTabletPeer(std::move(result));
+  auto leader_term = LeaderTerm(*(leader.peer));
+  if (!leader_term.ok()) {
+    return false;
+  }
+
+  return true;
+}
+
 void TabletServiceImpl::Write(const WriteRequestPB* req,
                               WriteResponsePB* resp,
                               rpc::RpcContext context) {
@@ -1373,7 +1395,8 @@ void TabletServiceImpl::Write(const WriteRequestPB* req,
     return;
   }
 
-  if (req->forward_request()) {
+  if (req->forward_request() &&
+      (!FLAGS_one_hop_optimization || !HasTabletLeader(req->tablet_id()))) {
     // Forward the rpc to the required Tserver.
     std::shared_ptr<ForwardWriteRpc> forward_rpc =
       std::make_shared<ForwardWriteRpc>(req, resp, std::move(context), server_->client());
@@ -1787,7 +1810,8 @@ void TabletServiceImpl::Read(const ReadRequestPB* req,
     return;
   }
 
-  if (req->forward_request()) {
+  if (req->forward_request() &&
+      (!FLAGS_one_hop_optimization || !HasTabletLeader(req->tablet_id()))) {
     // Forward the rpc to the required Tserver.
     std::shared_ptr<ForwardReadRpc> forward_rpc =
       std::make_shared<ForwardReadRpc>(req, resp, std::move(context), server_->client());

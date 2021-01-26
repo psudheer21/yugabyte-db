@@ -566,6 +566,8 @@ class YBClient {
   // Sets the local tserver given the Tserver info.
   void SetLocalTabletServer(const master::TSInfoPB& ts_info);
 
+  internal::RemoteTabletServer* GetLocalTabletServer();
+
   // List only those tables whose names pass a substring match on 'filter'.
   //
   // 'tables' is appended to only on success.
