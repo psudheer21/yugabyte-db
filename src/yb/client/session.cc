@@ -204,7 +204,7 @@ internal::Batcher& YBSession::Batcher() {
   if (!batcher_) {
     batcher_.reset(new internal::Batcher(
         client_, error_collector_.get(), shared_from_this(), transaction_, read_point(),
-        force_consistent_read_, force_local_tserver_forward_));
+        force_consistent_read_));
     if (timeout_.Initialized()) {
       batcher_->SetTimeout(timeout_);
     }

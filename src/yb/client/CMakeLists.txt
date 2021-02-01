@@ -73,6 +73,7 @@ set(CLIENT_LIBS
   server_process
   tserver_proto
   tserver_service_proto
+  tserver_forward_service_proto
   tserver_util
   yb_util
   gutil

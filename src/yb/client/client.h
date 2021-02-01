@@ -97,6 +97,7 @@ class TabletLocationsPB;
 namespace tserver {
 class LocalTabletServer;
 class TabletServerServiceProxy;
+class TabletServerForwardServiceProxy;
 }
 
 namespace client {
@@ -567,6 +568,10 @@ class YBClient {
   void SetLocalTabletServer(const master::TSInfoPB& ts_info);
 
   internal::RemoteTabletServer* GetLocalTabletServer();
+
+  void SetNodeLocalForwardProxy(const master::TSInfoPB& pb);
+
+  std::shared_ptr<tserver::TabletServerForwardServiceProxy> GetNodeLocalForwardProxy();
 
   // List only those tables whose names pass a substring match on 'filter'.
   //

@@ -59,7 +59,7 @@ ForwardRpc<Req, Resp>::ForwardRpc(const Req *req, Resp *res,
                                   YBConsistencyLevel consistency_level,
                                   YBClient *client)
   : Rpc(ComputeDeadline(), client->messenger(), &client->proxy_cache()),
-    req_(const_cast<Req *>(req)),
+    req_(req),
     res_(res),
     context_(std::move(context)),
     trace_(new Trace),
@@ -73,8 +73,6 @@ ForwardRpc<Req, Resp>::ForwardRpc(const Req *req, Resp *res,
                     nullptr /* table */,
                     mutable_retrier(),
                     trace_.get()) {
-
-  req_->set_forward_request(false);
 }
 
 template <class Req, class Resp>

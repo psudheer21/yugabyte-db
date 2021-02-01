@@ -46,6 +46,7 @@
 #include "yb/tserver/tablet_server_interface.h"
 #include "yb/tserver/tserver_admin.service.h"
 #include "yb/tserver/tserver_service.service.h"
+#include "yb/tserver/tserver_forward_service.service.h"
 
 namespace yb {
 class Schema;
@@ -307,6 +308,23 @@ class ConsensusServiceImpl : public consensus::ConsensusServiceIf {
 
  private:
   TabletPeerLookupIf* tablet_manager_;
+};
+
+class TabletServerForwardServiceImpl : public TabletServerForwardServiceIf {
+ public:
+  TabletServerForwardServiceImpl(TabletServiceImpl *impl,
+                                 TabletServerIf* server);
+
+  void Write(const WriteRequestPB* req, WriteResponsePB* resp, rpc::RpcContext context) override;
+
+  void Read(const ReadRequestPB* req, ReadResponsePB* resp, rpc::RpcContext context) override;
+
+ private:
+  bool HasTabletLeader(const string& tablet_id);
+
+ private:
+  TabletServiceImpl *const impl_;
+  TabletServerIf *const server_;
 };
 
 }  // namespace tserver

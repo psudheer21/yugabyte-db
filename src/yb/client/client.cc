@@ -1505,6 +1505,14 @@ internal::RemoteTabletServer* YBClient::GetLocalTabletServer() {
   return data_->meta_cache_->local_tserver();
 }
 
+void YBClient::SetNodeLocalForwardProxy(const master::TSInfoPB& pb) {
+  data_->meta_cache_->SetNodeLocalForwardProxy(pb);
+}
+
+std::shared_ptr<tserver::TabletServerForwardServiceProxy> YBClient::GetNodeLocalForwardProxy() {
+  return data_->meta_cache_->GetNodeLocalForwardProxy();
+}
+
 Result<bool> YBClient::IsLoadBalanced(uint32_t num_servers) {
   IsLoadBalancedRequestPB req;
   IsLoadBalancedResponsePB resp;

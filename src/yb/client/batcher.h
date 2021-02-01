@@ -109,8 +109,7 @@ class Batcher : public RefCountedThreadSafe<Batcher> {
           const YBSessionPtr& session,
           YBTransactionPtr transaction,
           ConsistentReadPoint* read_point,
-          bool force_consistent_read,
-          bool force_local_tserver_forward);
+          bool force_consistent_read);
 
   // Abort the current batch. Any writes that were buffered and not yet sent are
   // discarded. Those that were sent may still be delivered.  If there is a pending Flush
@@ -324,9 +323,6 @@ class Batcher : public RefCountedThreadSafe<Batcher> {
   ForceConsistentRead force_consistent_read_;
 
   RejectionScoreSourcePtr rejection_score_source_;
-
-  // Force the forwarding of rpcs to the local tablet server.
-  bool force_local_tserver_forward_;
 
   DISALLOW_COPY_AND_ASSIGN(Batcher);
 };

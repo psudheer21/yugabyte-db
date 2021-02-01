@@ -54,7 +54,6 @@ DEFINE_int32(ysql_wait_until_index_permissions_timeout_ms, 60 * 60 * 1000, // 60
              "from YSQL layer.");
 TAG_FLAG(ysql_wait_until_index_permissions_timeout_ms, advanced);
 DECLARE_int32(TEST_user_ddl_operation_timeout_sec);
-DECLARE_bool(ysql_forward_rpcs_to_local_tserver);
 
 namespace yb {
 namespace pggate {
@@ -555,10 +554,6 @@ PgSession::PgSession(
   session_->SetTimeout(MonoDelta::FromMilliseconds(FLAGS_pg_yb_session_timeout_ms));
 
   session_->SetForceConsistentRead(client::ForceConsistentRead::kTrue);
-
-  if (FLAGS_ysql_forward_rpcs_to_local_tserver) {
-    session_->SetForceLocalTserverForward(true);
-  }
 }
 
 PgSession::~PgSession() {

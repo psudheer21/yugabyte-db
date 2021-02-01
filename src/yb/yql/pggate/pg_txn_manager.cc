@@ -154,9 +154,6 @@ Status PgTxnManager::SetDeferrable(bool deferrable) {
 
 void PgTxnManager::StartNewSession() {
   session_ = std::make_shared<YBSession>(async_client_init_->client(), clock_);
-  if (FLAGS_ysql_forward_rpcs_to_local_tserver) {
-    session_->SetForceLocalTserverForward(true);
-  }
   session_->SetReadPoint(client::Restart::kFalse);
   session_->SetForceConsistentRead(client::ForceConsistentRead::kTrue);
 }
@@ -363,9 +360,6 @@ Status PgTxnManager::EnterSeparateDdlTxnMode() {
           IllegalState, "EnterSeparateDdlTxnMode called when already in a DDL transaction");
   VLOG_TXN_STATE(2);
   ddl_session_ = std::make_shared<YBSession>(async_client_init_->client(), clock_);
-  if (FLAGS_ysql_forward_rpcs_to_local_tserver) {
-    ddl_session_->SetForceLocalTserverForward(true);
-  }
   ddl_session_->SetForceConsistentRead(client::ForceConsistentRead::kTrue);
   ddl_txn_ = std::make_shared<YBTransaction>(GetOrCreateTransactionManager());
   ddl_session_->SetTransaction(ddl_txn_);

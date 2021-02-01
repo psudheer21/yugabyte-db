@@ -1395,15 +1395,6 @@ void TabletServiceImpl::Write(const WriteRequestPB* req,
     return;
   }
 
-  if (req->forward_request() &&
-      (!FLAGS_one_hop_optimization || !HasTabletLeader(req->tablet_id()))) {
-    // Forward the rpc to the required Tserver.
-    std::shared_ptr<ForwardWriteRpc> forward_rpc =
-      std::make_shared<ForwardWriteRpc>(req, resp, std::move(context), server_->client());
-    forward_rpc->SendRpc();
-    return;
-  }
-
   TRACE("Start Write");
   TRACE_EVENT1("tserver", "TabletServiceImpl::Write",
                "tablet_id", req->tablet_id());
@@ -1807,15 +1798,6 @@ void TabletServiceImpl::Read(const ReadRequestPB* req,
                              rpc::RpcContext context) {
   if (FLAGS_TEST_tserver_noop_read_write) {
     context.RespondSuccess();
-    return;
-  }
-
-  if (req->forward_request() &&
-      (!FLAGS_one_hop_optimization || !HasTabletLeader(req->tablet_id()))) {
-    // Forward the rpc to the required Tserver.
-    std::shared_ptr<ForwardReadRpc> forward_rpc =
-      std::make_shared<ForwardReadRpc>(req, resp, std::move(context), server_->client());
-    forward_rpc->SendRpc();
     return;
   }
 
@@ -2757,6 +2739,58 @@ scoped_refptr<Histogram> TabletServer::GetMetricsHistogram(
     return tablet_server_service_->GetMetric(metric).handler_latency;
   }
   return nullptr;
+}
+
+TabletServerForwardServiceImpl::TabletServerForwardServiceImpl(TabletServiceImpl *impl,
+                                                               TabletServerIf *server)
+  : TabletServerForwardServiceIf(server->MetricEnt()),
+    impl_(impl),
+    server_(server) {
+}
+
+bool TabletServerForwardServiceImpl::HasTabletLeader(const string& tablet_id) {
+  TabletPeerTablet result;
+  Status status = server_->tablet_peer_lookup()->GetTabletPeer(tablet_id, &result.tablet_peer);
+  if (!status.ok() ||
+      result.tablet_peer->state() != tablet::RUNNING ||
+      !result.tablet_peer->shared_tablet()) {
+    return false;
+  }
+
+  LeaderTabletPeer leader;
+  leader.FillTabletPeer(std::move(result));
+  auto leader_term = LeaderTerm(*(leader.peer));
+  if (!leader_term.ok()) {
+    return false;
+  }
+
+  return true;
+}
+
+void TabletServerForwardServiceImpl::Write(const WriteRequestPB* req,
+                                           WriteResponsePB* resp,
+                                           rpc::RpcContext context) {
+  if (HasTabletLeader(req->tablet_id()) && FLAGS_one_hop_optimization) {
+    impl_->Write(req, resp, std::move(context));
+    return;
+  }
+
+  // Forward the rpc to the required Tserver.
+  std::shared_ptr<ForwardWriteRpc> forward_rpc =
+    std::make_shared<ForwardWriteRpc>(req, resp, std::move(context), server_->client());
+  forward_rpc->SendRpc();
+}
+
+void TabletServerForwardServiceImpl::Read(const ReadRequestPB* req,
+                                          ReadResponsePB* resp,
+                                          rpc::RpcContext context) {
+  if (HasTabletLeader(req->tablet_id()) && FLAGS_one_hop_optimization) {
+    impl_->Read(req, resp, std::move(context));
+    return;
+  }
+  std::shared_ptr<ForwardReadRpc> forward_rpc =
+    std::make_shared<ForwardReadRpc>(req, resp, std::move(context), server_->client());
+  forward_rpc->SendRpc();
 }
 
 }  // namespace tserver

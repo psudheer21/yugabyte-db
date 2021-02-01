@@ -61,7 +61,7 @@ class ForwardRpc : public rpc::Rpc, public TabletRpc {
 
  protected:
   // The request protobuf.
-  Req *req_;
+  const Req *req_;
 
   // The response protobuf.
   Resp *res_;
@@ -75,7 +75,7 @@ class ForwardRpc : public rpc::Rpc, public TabletRpc {
   MonoTime start_;
 
   // The invoker that sends the request to the appropriate tablet server.
-  TabletInvoker tablet_invoker_;
+  RemoteTabletInvoker tablet_invoker_;
 
   rpc::RpcCommandPtr retained_self_;
 };

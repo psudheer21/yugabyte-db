@@ -115,8 +115,7 @@ Batcher::Batcher(YBClient* client,
                  const YBSessionPtr& session,
                  YBTransactionPtr transaction,
                  ConsistentReadPoint* read_point,
-                 bool force_consistent_read,
-                 bool force_local_tserver_forward)
+                 bool force_consistent_read)
   : client_(client),
     weak_session_(session),
     error_collector_(error_collector),
@@ -124,8 +123,7 @@ Batcher::Batcher(YBClient* client,
     async_rpc_metrics_(session->async_rpc_metrics()),
     transaction_(std::move(transaction)),
     read_point_(read_point),
-    force_consistent_read_(force_consistent_read),
-    force_local_tserver_forward_(force_local_tserver_forward) {
+    force_consistent_read_(force_consistent_read) {
 }
 
 void Batcher::Abort(const Status& status) {
@@ -664,12 +662,6 @@ std::shared_ptr<AsyncRpc> Batcher::CreateRpc(
   // Split the read operations according to consistency levels since based on consistency
   // levels the read algorithm would differ.
   const auto op_group = (**group.begin).yb_op->group();
-
-  // Forward to local tserver if we have the option enabled and the rpc is not for the master {which
-  // is concluded by checking if the tablet_id is '00000000000000000000000000000000'}.
-  const bool local_forward = force_local_tserver_forward_ &&
-                             tablet->tablet_id() != "00000000000000000000000000000000" &&
-                             client_->GetLocalTabletServer();
   AsyncRpcData data {
     .batcher = this,
     .tablet = tablet,
@@ -677,8 +669,7 @@ std::shared_ptr<AsyncRpc> Batcher::CreateRpc(
     .need_consistent_read = need_consistent_read,
     .write_time_for_backfill_ = hybrid_time_for_write_,
     .ops = InFlightOps(group.begin, group.end),
-    .need_metadata = group.need_metadata,
-    .force_local_tserver_forward = local_forward
+    .need_metadata = group.need_metadata
   };
 
   switch (op_group) {

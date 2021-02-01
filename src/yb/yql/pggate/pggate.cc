@@ -44,9 +44,6 @@
 
 #include "yb/tserver/tserver_shared_mem.h"
 
-DEFINE_bool(ysql_forward_rpcs_to_local_tserver, true,
-            "When true, forward the PGSQL rpcs to the local tServer.");
-
 DEFINE_string(local_tserver_uuid, "",
               "The permanent UUID of the local tserver.");
 
@@ -54,6 +51,7 @@ DECLARE_string(rpc_bind_addresses);
 DECLARE_bool(use_node_to_node_encryption);
 DECLARE_string(certs_dir);
 DECLARE_bool(node_to_node_encryption_use_client_certificates);
+DECLARE_bool(ysql_forward_rpcs_to_local_tserver);
 
 namespace yb {
 namespace pggate {
@@ -209,6 +207,7 @@ PgApiImpl::PgApiImpl(const YBCPgTypeEntity *YBCDataTypeArray, int count, YBCPgCa
       for (const auto& ts_info : ts_info_vec) {
         if (ts_info.permanent_uuid() == FLAGS_local_tserver_uuid) {
           client->SetLocalTabletServer(ts_info);
+          client->SetNodeLocalForwardProxy(ts_info);
         }
       }
     });

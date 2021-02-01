@@ -26,6 +26,7 @@ class TabletServerOptions;
 class TabletServerServiceProxy;
 class TabletSnapshotOpRequestPB;
 class TabletSnapshotOpResponsePB;
+class TabletServerForwardServiceProxy;
 class TSTabletManager;
 
 } // namespace tserver
