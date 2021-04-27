@@ -496,6 +496,7 @@ void PgWrapper::SetCommonEnv(Subprocess* proc, bool yb_enabled) {
     // Solution is to specify it explicitly.
     proc->SetEnv("FLAGS_certs_dir", conf_.certs_dir);
     proc->SetEnv("FLAGS_certs_for_client_dir", conf_.certs_for_client_dir);
+    proc->SetEnv("FLAGS_local_tserver_uuid", conf_.local_tserver_uuid);
 
     proc->SetEnv("YB_PG_TRANSACTIONS_ENABLED", FLAGS_pg_transactions_enabled ? "1" : "0");
 
@@ -513,7 +514,8 @@ void PgWrapper::SetCommonEnv(Subprocess* proc, bool yb_enabled) {
     static const std::vector<string> explicit_flags{"pggate_master_addresses",
                                                     "pggate_tserver_shm_fd",
                                                     "certs_dir",
-                                                    "certs_for_client_dir"};
+                                                    "certs_for_client_dir",
+                                                    "local_tserver_uuid"};
     std::vector<google::CommandLineFlagInfo> flag_infos;
     google::GetAllFlags(&flag_infos);
     for (const auto& flag_info : flag_infos) {

@@ -22,6 +22,7 @@
 #include "yb/client/meta_cache.h"
 
 #include "yb/tserver/tserver_service.proxy.h"
+#include "yb/tserver/tserver_forward_service.proxy.h"
 #include "yb/tserver/tserver_error.h"
 #include "yb/util/flag_tags.h"
 #include "yb/util/scope_exit.h"
@@ -446,7 +447,9 @@ bool TabletInvoker::Done(Status* status) {
   return true;
 }
 
-void TabletInvoker::InitialLookupTabletDone(const Result<RemoteTabletPtr>& result) {
+void TabletInvoker::InitialLookupTabletDone(
+  const Result<RemoteTabletPtr>& result) {
+
   VLOG(1) << "InitialLookupTabletDone(" << result << ")";
 
   if (result.ok()) {
@@ -459,10 +462,6 @@ void TabletInvoker::InitialLookupTabletDone(const Result<RemoteTabletPtr>& resul
 
 bool TabletInvoker::IsLocalCall() const {
   return current_ts_ != nullptr && current_ts_->IsLocal();
-}
-
-std::shared_ptr<tserver::TabletServerServiceProxy> TabletInvoker::proxy() const {
-  return current_ts_->proxy();
 }
 
 ::yb::HostPort TabletInvoker::ProxyEndpoint() const {
@@ -502,6 +501,74 @@ void TabletInvoker::LookupTabletCb(const Result<RemoteTabletPtr>& result) {
   if (!retry_status.ok()) {
     command_->Finished(!result.ok() ? result.status() : retry_status);
   }
+}
+
+
+template<class Proxy>
+TabletInvokerBase<Proxy>::TabletInvokerBase(const bool local_tserver_only,
+                                            const bool consistent_prefix,
+                                            YBClient* client,
+                                            rpc::RpcCommand* command,
+                                            TabletRpc* rpc,
+                                            RemoteTablet* tablet,
+                                            const std::shared_ptr<const YBTable>& table,
+                                            rpc::RpcRetrier* retrier,
+                                            Trace* trace) :
+  TabletInvoker(local_tserver_only, consistent_prefix, client, command, rpc,
+                tablet, table, retrier, trace) {
+}
+
+template<class Proxy>
+void TabletInvokerBase<Proxy>::WriteAsync(const tserver::WriteRequestPB& req,
+                                          tserver::WriteResponsePB *resp,
+                                          rpc::RpcController *controller,
+                                          std::function<void()>&& cb) {
+  DCHECK(proxy());
+  proxy()->WriteAsync(req, resp, controller, move(cb));
+}
+
+template<class Proxy>
+void TabletInvokerBase<Proxy>::ReadAsync(const tserver::ReadRequestPB& req,
+                                         tserver::ReadResponsePB *resp,
+                                         rpc::RpcController *controller,
+                                         std::function<void()>&& cb) {
+  DCHECK(proxy());
+  proxy()->ReadAsync(req, resp, controller, move(cb));
+}
+
+RemoteTabletInvoker::RemoteTabletInvoker(const bool local_tserver_only,
+                                         const bool consistent_prefix,
+                                         YBClient* client,
+                                         rpc::RpcCommand* command,
+                                         TabletRpc* rpc,
+                                         RemoteTablet* tablet,
+                                         const std::shared_ptr<const YBTable>& table,
+                                         rpc::RpcRetrier* retrier,
+                                         Trace* trace) :
+  TabletInvokerBase(local_tserver_only, consistent_prefix, client, command, rpc,
+                    tablet, table, retrier, trace) {
+}
+
+std::shared_ptr<tserver::TabletServerServiceProxy> RemoteTabletInvoker::proxy() {
+  DCHECK(current_ts_);
+  return current_ts_->proxy();
+}
+
+LocalNodeTabletInvoker::LocalNodeTabletInvoker(const bool local_tserver_only,
+                                               const bool consistent_prefix,
+                                               YBClient* client,
+                                               rpc::RpcCommand* command,
+                                               TabletRpc* rpc,
+                                               RemoteTablet* tablet,
+                                               const std::shared_ptr<const YBTable>& table,
+                                               rpc::RpcRetrier* retrier,
+                                               Trace* trace) :
+  TabletInvokerBase(local_tserver_only, consistent_prefix, client, command, rpc,
+                    tablet, table, retrier, trace) {
+}
+
+std::shared_ptr<tserver::TabletServerForwardServiceProxy> LocalNodeTabletInvoker::proxy() {
+  return client().GetNodeLocalForwardProxy();
 }
 
 Status ErrorStatus(const tserver::TabletServerErrorPB* error) {

@@ -47,6 +47,7 @@
 #include "yb/tserver/tserver_admin.pb.h"
 #include "yb/tserver/tserver_admin.service.h"
 #include "yb/tserver/tserver_service.service.h"
+#include "yb/tserver/tserver_forward_service.service.h"
 
 namespace yb {
 class Schema;
@@ -173,6 +174,8 @@ class TabletServiceImpl : public TabletServerServiceIf {
 
   template <class Req, class Resp, class F>
   void PerformAtLeader(const Req& req, Resp* resp, rpc::RpcContext* context, const F& f);
+
+  bool HasTabletLeader(const string& tablet_id);
 
   // Read implementation. If restart is required returns restart time, in case of success
   // returns invalid ReadHybridTime. Otherwise returns error status.
@@ -313,6 +316,23 @@ class ConsensusServiceImpl : public consensus::ConsensusServiceIf {
 
  private:
   TabletPeerLookupIf* tablet_manager_;
+};
+
+class TabletServerForwardServiceImpl : public TabletServerForwardServiceIf {
+ public:
+  TabletServerForwardServiceImpl(TabletServiceImpl *impl,
+                                 TabletServerIf* server);
+
+  void Write(const WriteRequestPB* req, WriteResponsePB* resp, rpc::RpcContext context) override;
+
+  void Read(const ReadRequestPB* req, ReadResponsePB* resp, rpc::RpcContext context) override;
+
+ private:
+  bool HasTabletLeader(const string& tablet_id);
+
+ private:
+  TabletServiceImpl *const impl_;
+  TabletServerIf *const server_;
 };
 
 }  // namespace tserver

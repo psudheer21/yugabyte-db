@@ -81,6 +81,10 @@ DEFINE_bool(detect_duplicates_for_retryable_requests, true,
             "Enable tracking of write requests that prevents the same write from being applied "
                 "twice.");
 
+DEFINE_bool(ysql_forward_rpcs_to_local_tserver, false,
+            "When true, forward the PGSQL rpcs to the local tServer.");
+
+
 DEFINE_CAPABILITY(PickReadTimeAtTabletServer, 0x8284d67b);
 
 using namespace std::placeholders;
@@ -131,15 +135,7 @@ AsyncRpc::AsyncRpc(AsyncRpcData* data, YBConsistencyLevel yb_consistency_level)
       batcher_(data->batcher),
       trace_(new Trace),
       ops_(std::move(data->ops)),
-      tablet_invoker_(LocalTabletServerOnly(ops_),
-                      yb_consistency_level == YBConsistencyLevel::CONSISTENT_PREFIX,
-                      data->batcher->client_,
-                      this,
-                      this,
-                      data->tablet,
-                      table(),
-                      mutable_retrier(),
-                      trace_.get()),
+      tablet_invoker_(GetTabletInvoker(data, yb_consistency_level)),
       start_(CoarseMonoClock::Now()),
       async_rpc_metrics_(data->batcher->async_rpc_metrics()) {
 
@@ -164,6 +160,32 @@ AsyncRpc::~AsyncRpc() {
   }
 }
 
+TabletInvoker *AsyncRpc::GetTabletInvoker(AsyncRpcData *data,
+                                          YBConsistencyLevel yb_consistency_level) {
+  if (FLAGS_ysql_forward_rpcs_to_local_tserver &&
+      data->tablet->tablet_id() !=  "00000000000000000000000000000000" &&
+      data->batcher->client_->GetNodeLocalForwardProxy()) {
+    return new LocalNodeTabletInvoker(true /* local_request */,
+                                      yb_consistency_level == YBConsistencyLevel::CONSISTENT_PREFIX,
+                                      data->batcher->client_,
+                                      this,
+                                      this,
+                                      data->tablet,
+                                      table(),
+                                      mutable_retrier(),
+                                      trace_.get());
+  }
+  return new RemoteTabletInvoker(LocalTabletServerOnly(ops_),
+                                 yb_consistency_level == YBConsistencyLevel::CONSISTENT_PREFIX,
+                                 data->batcher->client_,
+                                 this,
+                                 this,
+                                 data->tablet,
+                                 table(),
+                                 mutable_retrier(),
+                                 trace_.get());
+}
+
 void AsyncRpc::SendRpc() {
   TRACE_TO(trace_, "SendRpc() called.");
 
@@ -173,10 +195,10 @@ void AsyncRpc::SendRpc() {
   // FLAGS_redis_allow_reads_from_followers is set to true.
   // TODO(hector): Temporarily blacklist the follower that couldn't serve the read so we can retry
   // on another follower.
-  if (async_rpc_metrics_ && num_attempts() > 1 && tablet_invoker_.is_consistent_prefix()) {
+  if (async_rpc_metrics_ && num_attempts() > 1 && tablet_invoker_->is_consistent_prefix()) {
     IncrementCounter(async_rpc_metrics_->consistent_prefix_failed_reads);
   }
-  tablet_invoker_.Execute(std::string(), num_attempts() > 1);
+  tablet_invoker_->Execute(std::string(), num_attempts() > 1);
 }
 
 std::string AsyncRpc::ToString() const {
@@ -194,12 +216,12 @@ std::shared_ptr<const YBTable> AsyncRpc::table() const {
 
 void AsyncRpc::Finished(const Status& status) {
   Status new_status = status;
-  if (tablet_invoker_.Done(&new_status)) {
+  if (tablet_invoker_->Done(&new_status)) {
     if (tablet().is_split() ||
         ClientError(new_status) == ClientErrorCode::kTablePartitionListIsStale) {
       ops_[0]->yb_op->MarkTablePartitionListAsStale();
     }
-    if (async_rpc_metrics_ && status.ok() && tablet_invoker_.is_consistent_prefix()) {
+    if (async_rpc_metrics_ && status.ok() && tablet_invoker_->is_consistent_prefix()) {
       IncrementCounter(async_rpc_metrics_->consistent_prefix_successful_reads);
     }
     ProcessResponseFromTserver(new_status);
@@ -275,7 +297,7 @@ void AsyncRpc::Failed(const Status& status) {
 }
 
 bool AsyncRpc::IsLocalCall() const {
-  return tablet_invoker_.IsLocalCall();
+  return tablet_invoker_->IsLocalCall();
 }
 
 namespace {
@@ -306,7 +328,6 @@ void AsyncRpc::SendRpcToTserver(int attempt_num) {
   if (async_rpc_metrics_) {
     async_rpc_metrics_->time_to_send->Increment(ToMicroseconds(end_time - start_));
   }
-
   CallRemoteMethod();
 }
 
@@ -315,7 +336,7 @@ AsyncRpcBase<Req, Resp>::AsyncRpcBase(AsyncRpcData* data,
                                       YBConsistencyLevel consistency_level)
     : AsyncRpc(data, consistency_level) {
 
-  req_.set_tablet_id(tablet_invoker_.tablet()->tablet_id());
+  req_.set_tablet_id(tablet_invoker_->tablet()->tablet_id());
   req_.set_include_trace(IsTracingEnabled());
   const ConsistentReadPoint* read_point = batcher_->read_point();
   bool has_read_time = false;
@@ -325,7 +346,7 @@ AsyncRpcBase<Req, Resp>::AsyncRpcBase(AsyncRpcData* data,
     // consistent read is required.
     if (data->need_consistent_read &&
         table()->InternalSchema().table_properties().is_transactional()) {
-      auto read_time = read_point->GetReadTime(tablet_invoker_.tablet()->tablet_id());
+      auto read_time = read_point->GetReadTime(tablet_invoker_->tablet()->tablet_id());
       if (read_time) {
         has_read_time = true;
         read_time.AddToPB(&req_);
@@ -337,7 +358,10 @@ AsyncRpcBase<Req, Resp>::AsyncRpcBase(AsyncRpcData* data,
   }
   auto& transaction_metadata = batcher_->transaction_metadata();
   if (!transaction_metadata.transaction_id.IsNil()) {
-    SetTransactionMetadata(transaction_metadata, data->need_metadata, &req_);
+    // TODO(Sudheer) : data->need_metadata is ignored for when we forward rpcs to the local tserver.
+    SetTransactionMetadata(transaction_metadata,
+                           data->need_metadata || FLAGS_ysql_forward_rpcs_to_local_tserver,
+                           &req_);
     bool serializable = transaction_metadata.isolation == IsolationLevel::SERIALIZABLE_ISOLATION;
     LOG_IF(DFATAL, has_read_time && serializable)
         << "Read time should NOT be specified for serializable isolation: "
@@ -380,7 +404,7 @@ bool AsyncRpcBase<Req, Resp>::CommonResponseCheck(const Status& status) {
 
 template <class Req, class Resp>
 void AsyncRpcBase<Req, Resp>::SendRpcToTserver(int attempt_num) {
-  if (!tablet_invoker_.current_ts().HasCapability(CAPABILITY_PickReadTimeAtTabletServer)) {
+  if (!tablet_invoker_->current_ts().HasCapability(CAPABILITY_PickReadTimeAtTabletServer)) {
     ConsistentReadPoint* read_point = batcher_->read_point();
     if (read_point && !read_point->GetReadTime()) {
       auto txn = batcher_->transaction();
@@ -491,9 +515,8 @@ void WriteRpc::CallRemoteMethod() {
   TRACE_TO(trace, "SendRpcToTserver");
   ADOPT_TRACE(trace.get());
 
-  tablet_invoker_.proxy()->WriteAsync(
-      req_, &resp_, PrepareController(),
-      std::bind(&WriteRpc::Finished, this, Status::OK()));
+  tablet_invoker_->WriteAsync(req_, &resp_, PrepareController(),
+                              std::bind(&WriteRpc::Finished, this, Status::OK()));
   TRACE_TO(trace, "RpcDispatched Asynchronously");
 }
 
@@ -710,9 +733,8 @@ void ReadRpc::CallRemoteMethod() {
   TRACE_TO(trace, "SendRpcToTserver");
   ADOPT_TRACE(trace.get());
 
-  tablet_invoker_.proxy()->ReadAsync(
-      req_, &resp_, PrepareController(),
-      std::bind(&ReadRpc::Finished, this, Status::OK()));
+  tablet_invoker_->ReadAsync(req_, &resp_, PrepareController(),
+                             std::bind(&ReadRpc::Finished, this, Status::OK()));
   TRACE_TO(trace, "RpcDispatched Asynchronously");
 }
 

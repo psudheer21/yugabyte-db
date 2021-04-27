@@ -161,6 +161,7 @@ using yb::master::GetCDCStreamRequestPB;
 using yb::master::GetCDCStreamResponsePB;
 using yb::master::ListCDCStreamsRequestPB;
 using yb::master::ListCDCStreamsResponsePB;
+using yb::master::TSInfoPB;
 using yb::rpc::Messenger;
 using yb::rpc::MessengerBuilder;
 using yb::rpc::RpcController;
@@ -1468,10 +1469,55 @@ Status YBClient::ListTabletServers(vector<std::unique_ptr<YBTabletServer>>* tabl
   return Status::OK();
 }
 
+Status YBClient::ListTsInfoVec(vector<TSInfoPB>* ts_info_vec) {
+  ListTabletServersRequestPB req;
+  ListTabletServersResponsePB resp;
+  CALL_SYNC_LEADER_MASTER_RPC(req, resp, ListTabletServers);
+  for (int i = 0; i < resp.servers_size(); i++) {
+    ListTabletServersResponsePB_Entry* e = (resp.mutable_servers()->Mutable(i));
+    TSInfoPB ts_info;
+
+    ts_info.set_permanent_uuid(e->instance_id().permanent_uuid());
+
+    ts_info.mutable_private_rpc_addresses()->Swap(
+      e->mutable_registration()->mutable_common()->mutable_private_rpc_addresses());
+
+    ts_info.mutable_broadcast_addresses()->Swap(
+      e->mutable_registration()->mutable_common()->mutable_broadcast_addresses());
+
+    ts_info.mutable_cloud_info()->Swap(
+      e->mutable_registration()->mutable_common()->mutable_cloud_info());
+
+    ts_info.set_placement_uuid(e->registration().common().placement_uuid());
+
+    ts_info.mutable_capabilities()->Swap(
+      e->mutable_registration()->mutable_capabilities());
+
+    ts_info_vec->emplace_back(std::move(ts_info));
+  }
+  return Status::OK();
+}
+
 void YBClient::SetLocalTabletServer(const string& ts_uuid,
                                     const shared_ptr<tserver::TabletServerServiceProxy>& proxy,
                                     const tserver::LocalTabletServer* local_tserver) {
   data_->meta_cache_->SetLocalTabletServer(ts_uuid, proxy, local_tserver);
+}
+
+void YBClient::SetLocalTabletServer(const master::TSInfoPB& ts_info) {
+  data_->meta_cache_->SetLocalTabletServer(ts_info);
+}
+
+internal::RemoteTabletServer* YBClient::GetLocalTabletServer() {
+  return data_->meta_cache_->local_tserver();
+}
+
+void YBClient::SetNodeLocalForwardProxy(const master::TSInfoPB& pb) {
+  data_->meta_cache_->SetNodeLocalForwardProxy(pb);
+}
+
+std::shared_ptr<tserver::TabletServerForwardServiceProxy> YBClient::GetNodeLocalForwardProxy() {
+  return data_->meta_cache_->GetNodeLocalForwardProxy();
 }
 
 Result<bool> YBClient::IsLoadBalanced(uint32_t num_servers) {

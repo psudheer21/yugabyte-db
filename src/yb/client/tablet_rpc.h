@@ -35,6 +35,11 @@ namespace yb {
 
 namespace tserver {
 class TabletServerServiceProxy;
+class TabletServerForwardServiceProxy;
+}
+
+namespace rpc {
+  class RpcController;
 }
 
 namespace client {
@@ -55,6 +60,7 @@ class TabletRpc {
 };
 
 tserver::TabletServerErrorPB_Code ErrorCode(const tserver::TabletServerErrorPB* error);
+
 class TabletInvoker {
  public:
   // If table is specified, TabletInvoker can detect that table partitions are stale in case tablet
@@ -78,8 +84,13 @@ class TabletInvoker {
 
   bool IsLocalCall() const;
 
+  virtual void WriteAsync(const tserver::WriteRequestPB& req, tserver::WriteResponsePB *resp,
+                          rpc::RpcController *controller, std::function<void()>&& cb) = 0;
+
+  virtual void ReadAsync(const tserver::ReadRequestPB& req, tserver::ReadResponsePB *resp,
+                         rpc::RpcController *controller, std::function<void()>&& cb) = 0;
+
   const RemoteTabletPtr& tablet() const { return tablet_; }
-  std::shared_ptr<tserver::TabletServerServiceProxy> proxy() const;
   ::yb::HostPort ProxyEndpoint() const;
   YBClient& client() const { return *client_; }
   const RemoteTabletServer& current_ts() { return *current_ts_; }
@@ -87,7 +98,7 @@ class TabletInvoker {
 
   bool is_consistent_prefix() const { return consistent_prefix_; }
 
- private:
+ protected:
   friend class TabletRpcTest;
   FRIEND_TEST(TabletRpcTest, TabletInvokerSelectTabletServerRace);
 
@@ -167,6 +178,60 @@ class TabletInvoker {
 
   // Should we assign new leader in meta cache when successful response is received.
   bool assign_new_leader_ = false;
+};
+
+
+template <class Proxy>
+class TabletInvokerBase : public TabletInvoker {
+ public:
+  explicit TabletInvokerBase(const bool local_tserver_only,
+                             const bool consistent_prefix,
+                             YBClient* client,
+                             rpc::RpcCommand* command,
+                             TabletRpc* rpc,
+                             RemoteTablet* tablet,
+                             const std::shared_ptr<const YBTable>& table,
+                             rpc::RpcRetrier* retrier,
+                             Trace* trace);
+
+  void WriteAsync(const tserver::WriteRequestPB& req, tserver::WriteResponsePB *resp,
+                  rpc::RpcController *controller, std::function<void()>&& cb) override;
+
+  void ReadAsync(const tserver::ReadRequestPB& req, tserver::ReadResponsePB *resp,
+                 rpc::RpcController *controller, std::function<void()>&& cb) override;
+
+ protected:
+  virtual std::shared_ptr<Proxy> proxy() = 0;
+};
+
+class RemoteTabletInvoker : public TabletInvokerBase<tserver::TabletServerServiceProxy> {
+ public:
+  explicit RemoteTabletInvoker(const bool local_tserver_only,
+                               const bool consistent_prefix,
+                               YBClient* client,
+                               rpc::RpcCommand* command,
+                               TabletRpc* rpc,
+                               RemoteTablet* tablet,
+                               const std::shared_ptr<const YBTable>& table,
+                               rpc::RpcRetrier* retrier,
+                               Trace* trace);
+
+  std::shared_ptr<tserver::TabletServerServiceProxy> proxy() override;
+};
+
+class LocalNodeTabletInvoker : public TabletInvokerBase<tserver::TabletServerForwardServiceProxy> {
+ public:
+  explicit LocalNodeTabletInvoker(const bool local_tserver_only,
+                                  const bool consistent_prefix,
+                                  YBClient* client,
+                                  rpc::RpcCommand* command,
+                                  TabletRpc* rpc,
+                                  RemoteTablet* tablet,
+                                  const std::shared_ptr<const YBTable>& table,
+                                  rpc::RpcRetrier* retrier,
+                                  Trace* trace);
+
+  std::shared_ptr<tserver::TabletServerForwardServiceProxy> proxy() override;
 };
 
 CHECKED_STATUS ErrorStatus(const tserver::TabletServerErrorPB* error);
