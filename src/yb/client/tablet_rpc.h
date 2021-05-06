@@ -84,13 +84,14 @@ class TabletInvoker {
 
   bool IsLocalCall() const;
 
-  virtual void WriteAsync(const tserver::WriteRequestPB& req, tserver::WriteResponsePB *resp,
-                          rpc::RpcController *controller, std::function<void()>&& cb) = 0;
+  void WriteAsync(const tserver::WriteRequestPB& req, tserver::WriteResponsePB *resp,
+                  rpc::RpcController *controller, std::function<void()>&& cb);
 
-  virtual void ReadAsync(const tserver::ReadRequestPB& req, tserver::ReadResponsePB *resp,
-                         rpc::RpcController *controller, std::function<void()>&& cb) = 0;
+  void ReadAsync(const tserver::ReadRequestPB& req, tserver::ReadResponsePB *resp,
+                 rpc::RpcController *controller, std::function<void()>&& cb);
 
   const RemoteTabletPtr& tablet() const { return tablet_; }
+  std::shared_ptr<tserver::TabletServerServiceProxy> proxy() const;
   ::yb::HostPort ProxyEndpoint() const;
   YBClient& client() const { return *client_; }
   const RemoteTabletServer& current_ts() { return *current_ts_; }
@@ -98,7 +99,7 @@ class TabletInvoker {
 
   bool is_consistent_prefix() const { return consistent_prefix_; }
 
- protected:
+ private:
   friend class TabletRpcTest;
   FRIEND_TEST(TabletRpcTest, TabletInvokerSelectTabletServerRace);
 
@@ -131,6 +132,8 @@ class TabletInvoker {
         ErrorCode(error_code) == tserver::TabletServerErrorPB::TABLET_NOT_FOUND &&
         current_ts_ != nullptr;
   }
+
+  bool ShouldUseNodeLocalForwardProxy();
 
   YBClient* const client_;
 
@@ -178,60 +181,14 @@ class TabletInvoker {
 
   // Should we assign new leader in meta cache when successful response is received.
   bool assign_new_leader_ = false;
-};
 
-
-template <class Proxy>
-class TabletInvokerBase : public TabletInvoker {
- public:
-  explicit TabletInvokerBase(const bool local_tserver_only,
-                             const bool consistent_prefix,
-                             YBClient* client,
-                             rpc::RpcCommand* command,
-                             TabletRpc* rpc,
-                             RemoteTablet* tablet,
-                             const std::shared_ptr<const YBTable>& table,
-                             rpc::RpcRetrier* retrier,
-                             Trace* trace);
-
-  void WriteAsync(const tserver::WriteRequestPB& req, tserver::WriteResponsePB *resp,
-                  rpc::RpcController *controller, std::function<void()>&& cb) override;
-
-  void ReadAsync(const tserver::ReadRequestPB& req, tserver::ReadResponsePB *resp,
-                 rpc::RpcController *controller, std::function<void()>&& cb) override;
-
- protected:
-  virtual std::shared_ptr<Proxy> proxy() = 0;
-};
-
-class RemoteTabletInvoker : public TabletInvokerBase<tserver::TabletServerServiceProxy> {
- public:
-  explicit RemoteTabletInvoker(const bool local_tserver_only,
-                               const bool consistent_prefix,
-                               YBClient* client,
-                               rpc::RpcCommand* command,
-                               TabletRpc* rpc,
-                               RemoteTablet* tablet,
-                               const std::shared_ptr<const YBTable>& table,
-                               rpc::RpcRetrier* retrier,
-                               Trace* trace);
-
-  std::shared_ptr<tserver::TabletServerServiceProxy> proxy() override;
-};
-
-class LocalNodeTabletInvoker : public TabletInvokerBase<tserver::TabletServerForwardServiceProxy> {
- public:
-  explicit LocalNodeTabletInvoker(const bool local_tserver_only,
-                                  const bool consistent_prefix,
-                                  YBClient* client,
-                                  rpc::RpcCommand* command,
-                                  TabletRpc* rpc,
-                                  RemoteTablet* tablet,
-                                  const std::shared_ptr<const YBTable>& table,
-                                  rpc::RpcRetrier* retrier,
-                                  Trace* trace);
-
-  std::shared_ptr<tserver::TabletServerForwardServiceProxy> proxy() override;
+  // Whether to use the local node proxy or to use the default remote proxy for communication to the
+  // tablet servers. This flag is true if all of the following conditions are true:
+  // 1. FLAGS_ysql_forward_rpcs_to_local_tserver is true
+  // 2. The node local forward proxy is set in the client.
+  // 3. The destination tserver is not the same as the node local tserver.
+  // 4. The rpc is not intended for the master.
+  bool should_use_local_node_proxy_ = false;
 };
 
 CHECKED_STATUS ErrorStatus(const tserver::TabletServerErrorPB* error);

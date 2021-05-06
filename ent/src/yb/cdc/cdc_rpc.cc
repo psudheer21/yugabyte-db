@@ -122,7 +122,7 @@ class CDCWriteRpc : public rpc::Rpc, public client::internal::TabletRpc {
   }
 
   TracePtr trace_;
-  client::internal::RemoteTabletInvoker invoker_;
+  client::internal::TabletInvoker invoker_;
   WriteRequestPB req_;
   WriteResponsePB resp_;
   WriteCDCRecordCallback callback_;
@@ -256,7 +256,7 @@ class CDCReadRpc : public rpc::Rpc, public client::internal::TabletRpc {
   }
 
   TracePtr trace_;
-  client::internal::RemoteTabletInvoker invoker_;
+  client::internal::TabletInvoker invoker_;
 
   GetChangesRequestPB req_;
   GetChangesResponsePB resp_;

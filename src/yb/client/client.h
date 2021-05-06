@@ -558,22 +558,26 @@ class YBClient {
 
   CHECKED_STATUS ListTabletServers(std::vector<std::unique_ptr<YBTabletServer>>* tablet_servers);
 
-  // List the tserver info for all the tservers in the cluster.
-  CHECKED_STATUS ListTsInfoVec(std::vector<master::TSInfoPB>* tablet_server_info_vec);
-
   // Sets local tserver and its proxy.
   void SetLocalTabletServer(const std::string& ts_uuid,
                             const std::shared_ptr<tserver::TabletServerServiceProxy>& proxy,
                             const tserver::LocalTabletServer* local_tserver);
 
-  // Sets the local tserver given the Tserver info.
-  void SetLocalTabletServer(const master::TSInfoPB& ts_info);
-
   internal::RemoteTabletServer* GetLocalTabletServer();
 
-  void SetNodeLocalForwardProxy(const master::TSInfoPB& pb);
+  // Sets the node local forward service proxy. This proxy is used to forward the rpcs to the
+  // appropriate tablet server.
+  void SetNodeLocalForwardProxy(
+      const std::shared_ptr<tserver::TabletServerForwardServiceProxy>& proxy);
 
-  std::shared_ptr<tserver::TabletServerForwardServiceProxy> GetNodeLocalForwardProxy();
+  // Returns the node local forward service proxy.
+  std::shared_ptr<tserver::TabletServerForwardServiceProxy>& GetNodeLocalForwardProxy();
+
+  // Sets the host port of the node local tserver.
+  void SetNodeLocalTServerHostPort(const ::yb::HostPort& hostport);
+
+  // Returns the host port of the node local tserver.
+  const ::yb::HostPort& GetNodeLocalTServerHostPort();
 
   // List only those tables whose names pass a substring match on 'filter'.
   //

@@ -194,9 +194,6 @@ DEFINE_int32(index_backfill_wait_for_old_txns_ms, 0,
 TAG_FLAG(index_backfill_wait_for_old_txns_ms, evolving);
 TAG_FLAG(index_backfill_wait_for_old_txns_ms, runtime);
 
-DEFINE_bool(one_hop_optimization, true,
-            "Whether we ignore the forward rpc flag when the leader is present on the node.");
-
 DEFINE_test_flag(int32, write_rejection_percentage, 0,
                  "Reject specified percentage of writes.");
 
@@ -1466,25 +1463,6 @@ void TabletServiceAdminImpl::SplitTablet(
 
 bool EmptyWriteBatch(const docdb::KeyValueWriteBatchPB& write_batch) {
   return write_batch.write_pairs().empty() && write_batch.apply_external_transactions().empty();
-}
-
-bool TabletServiceImpl::HasTabletLeader(const string& tablet_id) {
-  TabletPeerTablet result;
-  Status status = server_->tablet_peer_lookup()->GetTabletPeer(tablet_id, &result.tablet_peer);
-  if (!status.ok() ||
-      result.tablet_peer->state() != tablet::RUNNING ||
-      !result.tablet_peer->shared_tablet()) {
-    return false;
-  }
-
-  LeaderTabletPeer leader;
-  leader.FillTabletPeer(std::move(result));
-  auto leader_term = LeaderTerm(*(leader.peer));
-  if (!leader_term.ok()) {
-    return false;
-  }
-
-  return true;
 }
 
 void TabletServiceImpl::Write(const WriteRequestPB* req,
@@ -2873,32 +2851,9 @@ TabletServerForwardServiceImpl::TabletServerForwardServiceImpl(TabletServiceImpl
     server_(server) {
 }
 
-bool TabletServerForwardServiceImpl::HasTabletLeader(const string& tablet_id) {
-  TabletPeerTablet result;
-  Status status = server_->tablet_peer_lookup()->GetTabletPeer(tablet_id, &result.tablet_peer);
-  if (!status.ok() ||
-      result.tablet_peer->state() != tablet::RUNNING ||
-      !result.tablet_peer->shared_tablet()) {
-    return false;
-  }
-
-  LeaderTabletPeer leader;
-  leader.FillTabletPeer(std::move(result));
-  auto leader_term = LeaderTerm(*(leader.peer));
-  if (!leader_term.ok()) {
-    return false;
-  }
-
-  return true;
-}
-
 void TabletServerForwardServiceImpl::Write(const WriteRequestPB* req,
                                            WriteResponsePB* resp,
                                            rpc::RpcContext context) {
-  if (HasTabletLeader(req->tablet_id()) && FLAGS_one_hop_optimization) {
-    impl_->Write(req, resp, std::move(context));
-    return;
-  }
   // Forward the rpc to the required Tserver.
   std::shared_ptr<ForwardWriteRpc> forward_rpc =
     std::make_shared<ForwardWriteRpc>(req, resp, std::move(context), server_->client());
@@ -2908,10 +2863,6 @@ void TabletServerForwardServiceImpl::Write(const WriteRequestPB* req,
 void TabletServerForwardServiceImpl::Read(const ReadRequestPB* req,
                                           ReadResponsePB* resp,
                                           rpc::RpcContext context) {
-  if (HasTabletLeader(req->tablet_id()) && FLAGS_one_hop_optimization) {
-    impl_->Read(req, resp, std::move(context));
-    return;
-  }
   std::shared_ptr<ForwardReadRpc> forward_rpc =
     std::make_shared<ForwardReadRpc>(req, resp, std::move(context), server_->client());
   forward_rpc->SendRpc();

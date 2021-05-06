@@ -175,8 +175,6 @@ class TabletServiceImpl : public TabletServerServiceIf {
   template <class Req, class Resp, class F>
   void PerformAtLeader(const Req& req, Resp* resp, rpc::RpcContext* context, const F& f);
 
-  bool HasTabletLeader(const string& tablet_id);
-
   // Read implementation. If restart is required returns restart time, in case of success
   // returns invalid ReadHybridTime. Otherwise returns error status.
   Result<ReadHybridTime> DoRead(ReadContext* read_context);
@@ -326,9 +324,6 @@ class TabletServerForwardServiceImpl : public TabletServerForwardServiceIf {
   void Write(const WriteRequestPB* req, WriteResponsePB* resp, rpc::RpcContext context) override;
 
   void Read(const ReadRequestPB* req, ReadResponsePB* resp, rpc::RpcContext context) override;
-
- private:
-  bool HasTabletLeader(const string& tablet_id);
 
  private:
   TabletServiceImpl *const impl_;

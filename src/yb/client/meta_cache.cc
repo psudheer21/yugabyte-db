@@ -628,28 +628,6 @@ void MetaCache::SetLocalTabletServer(const string& permanent_uuid,
   local_tserver_ = entry.first->second.get();
 }
 
-void MetaCache::SetLocalTabletServer(const master::TSInfoPB& ts_info) {
-  const std::string& permanent_uuid = ts_info.permanent_uuid();
-  const auto entry = ts_cache_.emplace(permanent_uuid,
-                                       std::make_unique<RemoteTabletServer>(ts_info));
-  CHECK(entry.second);
-  local_tserver_ = entry.first->second.get();
-}
-
-void MetaCache::SetNodeLocalForwardProxy(const TSInfoPB& pb) {
-  DCHECK(!node_local_forward_proxy_);
-  auto hostport = HostPortFromPB(DesiredHostPort(
-      pb.broadcast_addresses(), pb.private_rpc_addresses(),
-      pb.cloud_info(), client_->data_->cloud_info_pb_));
-  node_local_forward_proxy_ =
-    std::make_shared<tserver::TabletServerForwardServiceProxy>(client_->data_->proxy_cache_.get(),
-                                                               hostport);
-}
-
-std::shared_ptr<tserver::TabletServerForwardServiceProxy> MetaCache::GetNodeLocalForwardProxy() {
-  return node_local_forward_proxy_;
-}
-
 void MetaCache::UpdateTabletServerUnlocked(const master::TSInfoPB& pb) {
   const std::string& permanent_uuid = pb.permanent_uuid();
   auto it = ts_cache_.find(permanent_uuid);

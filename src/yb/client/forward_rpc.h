@@ -44,7 +44,7 @@ class ForwardRpc : public rpc::Rpc, public TabletRpc {
 
   const RemoteTablet& tablet() const { return *tablet_invoker_.tablet(); }
 
-  const tserver::TabletServerErrorPB* response_error() const {
+  const tserver::TabletServerErrorPB* response_error() const override {
     return res_->has_error() ? &res_->error() : nullptr;
   }
 
@@ -75,7 +75,7 @@ class ForwardRpc : public rpc::Rpc, public TabletRpc {
   MonoTime start_;
 
   // The invoker that sends the request to the appropriate tablet server.
-  RemoteTabletInvoker tablet_invoker_;
+  TabletInvoker tablet_invoker_;
 
   rpc::RpcCommandPtr retained_self_;
 };

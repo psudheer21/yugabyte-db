@@ -223,7 +223,6 @@ int TabletServerMain(int argc, char** argv) {
         ? pg_process_conf.certs_dir
         : FLAGS_certs_for_client_dir;
     pg_process_conf.enable_tls = FLAGS_use_client_to_server_encryption;
-    pg_process_conf.local_tserver_uuid = server->permanent_uuid();
 
     // Follow the same logic as elsewhere, check FLAGS_cert_node_filename then
     // server_broadcast_addresses then rpc_bind_addresses.

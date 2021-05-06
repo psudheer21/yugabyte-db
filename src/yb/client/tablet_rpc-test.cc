@@ -93,7 +93,7 @@ TEST_F(TabletRpcTest, TabletInvokerSelectTabletServerRace) {
   scoped_refptr<Trace> trace(new Trace());
 
   for (int iter = 0; iter < 200; ++iter) {
-    internal::RemoteTabletInvoker invoker(false /* local_tserver_only */,
+    internal::TabletInvoker invoker(false /* local_tserver_only */,
                                     false /* consistent_prefix */,
                                     nullptr /* client */,
                                     nullptr /* command */,

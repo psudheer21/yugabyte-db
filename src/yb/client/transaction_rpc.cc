@@ -86,7 +86,7 @@ class TransactionRpcBase : public rpc::Rpc, public internal::TabletRpc {
                            rpc::ResponseCallback callback) = 0;
 
   TracePtr trace_;
-  internal::RemoteTabletInvoker invoker_;
+  internal::TabletInvoker invoker_;
 };
 
 // UpdateTransactionRpc is used to call UpdateTransaction remote method of appropriate tablet.
