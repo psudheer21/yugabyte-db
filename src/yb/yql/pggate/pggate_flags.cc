@@ -123,3 +123,6 @@ DEFINE_bool(ysql_disable_portal_run_context, false, "Whether to use portal ybRun
 DEFINE_bool(ysql_allow_analyze_cmd, false,
             "Whether to allow ANALYZE cmd to run basic row count estimation.");
 TAG_FLAG(ysql_allow_analyze_cmd, hidden);
+
+DEFINE_bool(ysql_force_non_transactional_writes, true,
+            "Whether to use force non transactional writes");

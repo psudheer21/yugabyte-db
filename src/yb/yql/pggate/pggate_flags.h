@@ -44,5 +44,6 @@ DECLARE_int32(ysql_max_write_restart_attempts);
 DECLARE_bool(ysql_sleep_before_retry_on_txn_conflict);
 DECLARE_bool(ysql_disable_portal_run_context);
 DECLARE_bool(ysql_allow_analyze_cmd);
+DECLARE_bool(ysql_force_non_transactional_writes);
 
 #endif  // YB_YQL_PGGATE_PGGATE_FLAGS_H

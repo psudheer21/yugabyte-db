@@ -365,10 +365,11 @@ Oid YBCExecuteInsert(Relation rel,
                      TupleDesc tupleDesc,
                      HeapTuple tuple)
 {
+	fprintf(stderr, "execute insert called\n");
 	return YBCExecuteInsertInternal(rel,
 	                                tupleDesc,
 	                                tuple,
-	                                false /* is_single_row_txn */);
+	                                YBCGetForceNonTransactionalWrites());
 }
 
 Oid YBCExecuteNonTxnInsert(Relation rel,

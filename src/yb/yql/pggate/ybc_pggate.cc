@@ -942,6 +942,10 @@ void YBCSetTimeout(int timeout_ms, void* extra) {
   pgapi->SetTimeout(timeout_ms);
 }
 
+bool YBCGetForceNonTransactionalWrites() {
+  return FLAGS_ysql_force_non_transactional_writes;
+}
+
 //------------------------------------------------------------------------------------------------
 // Thread-local variables.
 //------------------------------------------------------------------------------------------------

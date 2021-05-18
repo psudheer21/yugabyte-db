@@ -498,6 +498,8 @@ bool YBCPgIsYugaByteEnabled();
 // Sets the specified timeout in the rpc service.
 void YBCSetTimeout(int timeout_ms, void* extra);
 
+bool YBCGetForceNonTransactionalWrites();
+
 //--------------------------------------------------------------------------------------------------
 // Thread-Local variables.
 
