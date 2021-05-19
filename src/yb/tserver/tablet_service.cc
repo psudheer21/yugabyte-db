@@ -2847,7 +2847,6 @@ scoped_refptr<Histogram> TabletServer::GetMetricsHistogram(
 TabletServerForwardServiceImpl::TabletServerForwardServiceImpl(TabletServiceImpl *impl,
                                                                TabletServerIf *server)
   : TabletServerForwardServiceIf(server->MetricEnt()),
-    impl_(impl),
     server_(server) {
 }
 

@@ -326,7 +326,6 @@ class TabletServerForwardServiceImpl : public TabletServerForwardServiceIf {
   void Read(const ReadRequestPB* req, ReadResponsePB* resp, rpc::RpcContext context) override;
 
  private:
-  TabletServiceImpl *const impl_;
   TabletServerIf *const server_;
 };
 
